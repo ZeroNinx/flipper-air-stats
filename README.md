@@ -140,7 +140,7 @@ Run the driver checks on the host with `python3 tools/test_scd4x.py` (requires `
 
 ## General (Settings menu)
 
-- Backlight — 5s, Auto, 1m, 5m, 10m, 20m, 60m, Inf. The app takes direct control of the display backlight, bypassing the system backlight service. **5s** keeps the screen dark — the system may briefly flash it on button press, but the app turns it back off within 5 seconds. **Auto** hands control to the system (default ~30s timeout). **1m–60m** keep the screen on, then turn it off after the set period of inactivity on the main screen; any button press resets the timer. **Inf** keeps the screen always on
+- Backlight — 5s, Auto, 1m, 5m, 10m, 20m, 60m, Inf. Brightness always follows the Flipper's system setting. **Auto** uses the system's backlight timeout. **5s** and **1m–60m** keep the screen lit until the selected inactivity timeout; buttons on any app screen restart the timer. **Inf** holds the notification service's always-on lock until the mode changes or the app exits. The app never forces maximum brightness. See [backlight behavior and validation](docs/backlight.md)
 - LED Notify — on/off
 - Sound Alert — on/off
 - Sound Volume — 1–10
@@ -205,9 +205,3 @@ CO2 offset is applied after averaging.
 # Battery drain
 
 Screen off, 24h: ~ -40% battery
-
-# Known issues
-
-- **Unleashed + RGB backlight mod**: timed backlight modes (5s, 1m–60m) may not turn off the screen. The RGB rainbow timer in Unleashed notification service overrides backlight off commands. This is a firmware-level limitation, not an app bug
-- **One-time backlight flicker (~30s after launch)**: the system backlight timer may briefly turn off the screen about 30 seconds after app start or after a button press. The app re-enables it within a few seconds. This is a one-time event per input — not a recurring bug
-

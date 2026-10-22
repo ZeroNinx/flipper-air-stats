@@ -101,7 +101,7 @@ tested on Momentum mntm-009 (API 79.2); SCD40 hardware testing is pending.
 
 ## General (Settings menu)
 
-- Backlight: 5s, Auto, 1m, 5m, 10m, 20m, 60m, Inf
+- Backlight: 5s, Auto, 1m, 5m, 10m, 20m, 60m, Inf. Brightness follows system settings. Timed modes reset on buttons in any app screen; Inf keeps the screen lit until the app exits or the mode changes
 - LED Notify: on/off
 - Sound Alert: on/off
 - Sound Volume: 1-10

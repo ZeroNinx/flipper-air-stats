@@ -456,7 +456,7 @@ static void _build_climate_items(uint8_t sel_idx, SensorDataType unit_dt) {
 
 static bool _view_custom_event(uint32_t event, void* context) {
     UNUSED(context);
-    UNUSED(event);
+    if(event != 0) return false;
     if(temp_unit_item)
         app->settings.temp_unit =
             (tempMeasureUnit)variable_item_get_current_value_index(temp_unit_item);

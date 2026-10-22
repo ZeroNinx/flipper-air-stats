@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Remove periodic maximum-brightness HAL writes; backlight brightness now follows system settings.
+- Fix Inf with a balanced notification-service lock, and apply inactivity timeouts across all app screens.
+- Make 5s a real five-second timeout and release backlight ownership when leaving the app.
 - Add SCD40/41 to the CO2 selector, saved settings, and sensor info screen.
 - Verify SCD41 periodic CO2, temperature, and humidity readings on Momentum mntm-009.
 - Check SCD4x data readiness and propagate I2C/CRC failures without partially updating readings.

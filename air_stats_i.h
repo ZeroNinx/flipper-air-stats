@@ -24,7 +24,6 @@
 
 /* Backlight */
 void air_stats_apply_backlight(void);
-void air_stats_backlight_activity(void);
 
 /* Entry point */
 int32_t air_stats_main(void* p);

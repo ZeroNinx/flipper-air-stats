@@ -194,36 +194,27 @@ bool unitemp_loadSettings(void) {
     return true;
 }
 
-/* ---- Backlight: direct HAL control ---- */
+/* ---- Backlight: notification service, system brightness ---- */
 
-static const uint32_t bl_minutes[] = {0, 0, 1, 5, 10, 20, 60, 0};
+enum { AirStatsEventBacklightActivity = 0x100 };
 
 void air_stats_apply_backlight(void) {
-    uint8_t m = app->settings.backlight_mode;
-    app->backlight_deadline = 0;
-    if(m == 0) {
-        /* Off: HAL off */
-        furi_hal_light_set(LightBacklight, 0);
-    } else if(m == 1) {
-        /* Auto: system controls */
-        notification_message(app->notifications, &sequence_display_backlight_enforce_auto);
-    } else if(m == 7) {
-        /* Inf: HAL on */
-        furi_hal_light_set(LightBacklight, 0xFF);
-    } else {
-        /* Timed: HAL on + set deadline */
-        furi_hal_light_set(LightBacklight, 0xFF);
-        app->backlight_deadline = furi_get_tick() + furi_ms_to_ticks(bl_minutes[m] * 60000);
+    air_stats_backlight_set_mode(&app->backlight, app->settings.backlight_mode);
+}
+
+static void backlight_input_callback(const void* message, void* context) {
+    const InputEvent* event = message;
+    if(event->type != InputTypeRelease) {
+        // Keep lock ownership and timer updates on the dispatcher thread.
+        view_dispatcher_send_custom_event(context, AirStatsEventBacklightActivity);
     }
 }
 
-void air_stats_backlight_activity(void) {
-    uint8_t m = app->settings.backlight_mode;
-    if(m >= 2 && m <= 6) {
-        /* Timed: turn on + reset deadline */
-        furi_hal_light_set(LightBacklight, 0xFF);
-        app->backlight_deadline = furi_get_tick() + furi_ms_to_ticks(bl_minutes[m] * 60000);
-    }
+static bool custom_event_callback(void* context, uint32_t event) {
+    UNUSED(context);
+    if(event != AirStatsEventBacklightActivity) return false;
+    air_stats_backlight_wake(&app->backlight);
+    return true;
 }
 
 /* ---- Tick callback: poll all sensors ---- */
@@ -231,37 +222,7 @@ void air_stats_backlight_activity(void) {
 static void tick_callback(void* context) {
     UNUSED(context);
 
-    /* Backlight: direct HAL enforcement, cached + throttled */
-    {
-        static uint8_t bl_last = 0xFF;
-        static uint32_t bl_last_tick = 0;
-        uint8_t bl_want = 0xFF;
-        uint8_t m = app->settings.backlight_mode;
-
-        if(m == 0) {
-            bl_want = 0;
-        } else if(m == 1) {
-            bl_want = 0xFF; /* marker: don't touch */
-        } else if(m == 7) {
-            bl_want = 0xFF;
-        } else {
-            if(app->backlight_deadline > 0 && furi_get_tick() >= app->backlight_deadline) {
-                app->backlight_deadline = 0;
-            }
-            bl_want = (app->backlight_deadline > 0) ? 0xFF : 0;
-        }
-
-        if(m != 1) { /* Auto: skip — system controls */
-            uint32_t now = furi_get_tick();
-            bool changed = (bl_want != bl_last);
-            bool throttle_ok = (now - bl_last_tick) >= 5000;
-            if(changed || throttle_ok) {
-                furi_hal_light_set(LightBacklight, bl_want);
-                bl_last = bl_want;
-                bl_last_tick = now;
-            }
-        }
-    }
+    air_stats_backlight_update(&app->backlight);
 
     if(app->sensors_update) {
         app->sensors_update = false;
@@ -289,6 +250,7 @@ int32_t air_stats_main(void* p) {
     app->gui           = furi_record_open(RECORD_GUI);
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
     app->storage       = furi_record_open(RECORD_STORAGE);
+    air_stats_backlight_init(&app->backlight, app->notifications);
 
     /* Default settings (applied before loadSettings; loadSettings overwrites from file) */
     app->settings.backlight_mode    = 7; /* Inf */
@@ -315,6 +277,7 @@ int32_t air_stats_main(void* p) {
 
     /* ViewDispatcher */
     app->view_dispatcher = view_dispatcher_alloc();
+    view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
 
     /* Popup (registered as ViewPopup in dispatcher) */
     app->popup = popup_alloc();
@@ -382,12 +345,17 @@ int32_t air_stats_main(void* p) {
     /* Attach dispatcher to GUI and run */
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
     view_main_switch();
+    FuriPubSub* input_events = furi_record_open(RECORD_INPUT_EVENTS);
+    FuriPubSubSubscription* input_subscription =
+        furi_pubsub_subscribe(input_events, backlight_input_callback, app->view_dispatcher);
     view_dispatcher_run(app->view_dispatcher);
+    furi_pubsub_unsubscribe(input_events, input_subscription);
+    furi_record_close(RECORD_INPUT_EVENTS);
 
     /* --- Cleanup --- */
 
     /* Restore backlight to system */
-    notification_message(app->notifications, &sequence_display_backlight_enforce_auto);
+    air_stats_backlight_release(&app->backlight);
 
     /* Turn off LED on exit */
     furi_hal_light_set(LightRed | LightGreen | LightBlue, 0);
